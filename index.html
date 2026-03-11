@@ -262,22 +262,9 @@
       let personaMap = JSON.parse(localStorage.getItem('personaByUid') || '{}');
       let persona = personaMap[user.uid];
       if (!persona) {
-        // kullanıcıya hangi isimle devam edeceğini sor
-        persona = prompt('Hangi kullanıcı olarak devam etmek istiyorsun? (Alişş / Betüşşş)');
-        if (!persona) {
-          alert('Geçersiz seçim.');
-          firebase.auth().signOut();
-          return;
-        }
-        persona = persona.trim();
-        // büyük/küçük harf duyarsız eşleşme
-        const match = Object.keys(users).find(k => k.toLowerCase() === persona.toLowerCase());
-        if (!match) {
-          alert('Geçersiz seçim.');
-          firebase.auth().signOut();
-          return;
-        }
-        persona = match;
+        // kullanıcıya hangi isimle devam edeceğini sor using confirm to prevent typing mistakes
+        const choice = confirm('Alişş olarak devam etmek istiyorsan Tamam, Betüşşş için İptal tuşuna bas.');
+        persona = choice ? 'Alişş' : 'Betüşşş';
         personaMap[user.uid] = persona;
         localStorage.setItem('personaByUid', JSON.stringify(personaMap));
       }
@@ -444,6 +431,7 @@
     // Logout
     function logout() {
       currentUser = null;
+      googleLoggedIn = false;
       document.getElementById('mainApp').classList.add('hidden');
       document.getElementById('userLoginScreen').classList.remove('hidden');
       firebase.auth().signOut();
