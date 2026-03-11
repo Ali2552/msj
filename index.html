@@ -64,7 +64,7 @@
  <body class="h-full heart-bg text-white overflow-auto">
   <div id="app" class="min-h-full relative"><!-- Floating Hearts Background -->
    <div class="floating-hearts" id="floatingHearts"></div><!-- System Password Screen -->
-   <div id="systemLoginScreen" class="min-h-full flex items-center justify-center p-4">
+   <div id="systemLoginScreen" class="min-h-full flex items-center justify-center p-4 hidden">
     <div class="glass rounded-3xl p-8 w-full max-w-sm text-center">
      <div class="text-6xl mb-6 pulse-heart">
       💕
@@ -74,7 +74,7 @@
      <p id="systemError" class="text-red-400 mt-3 text-sm hidden">Yanlış şifre!</p>
     </div>
    </div><!-- User Login Screen -->
-   <div id="userLoginScreen" class="min-h-full flex items-center justify-center p-4 hidden">
+   <div id="userLoginScreen" class="min-h-full flex items-center justify-center p-4">
     <div class="glass rounded-3xl p-8 w-full max-w-sm text-center">
      <div class="text-5xl mb-4">
       👫
@@ -194,6 +194,7 @@
   <script>
     // Firebase yapılandırması ve kanal anahtarı (sizin verdiğiniz POHGO_...)
     const channelKey = 'POHGO_hrTxRY6yzIIoahZL8-nMpGosShQHPH2Oavisg';
+    let googleLoggedIn = false; // sistem şifresi sonrası mainApp gösterimi için
     const firebaseConfig = {
       apiKey: "AIzaSyAHacKAKo6QEeMVGXTAT0IyuVuYuxUsHxs",
       authDomain: "msju-7b8fa.firebaseapp.com",
@@ -276,7 +277,8 @@
       currentUser = persona;
       const u = users[currentUser];
       document.getElementById('userLoginScreen').classList.add('hidden');
-      document.getElementById('mainApp').classList.remove('hidden');
+      document.getElementById('systemLoginScreen').classList.remove('hidden');
+      googleLoggedIn = true;
       document.getElementById('welcomeUser').textContent = `Hoş Geldin ${currentUser} 💕`;
       document.getElementById('chatPartnerName').textContent = u.partner;
       document.getElementById('chatPartnerAvatar').textContent = users[u.partner].avatar;
@@ -408,8 +410,19 @@
       const password = document.getElementById('systemPassword').value;
       if (password === 'Kalp') {
         document.getElementById('systemLoginScreen').classList.add('hidden');
-        document.getElementById('userLoginScreen').classList.remove('hidden');
         document.getElementById('systemError').classList.add('hidden');
+        if (googleLoggedIn) {
+          // Google ile doğrulu tamamsa uygulamayı başlat
+          document.getElementById('mainApp').classList.remove('hidden');
+          calculateTime();
+          loadMessages();
+          loadPages();
+          checkSharedPages();
+          startRealtimeListener();
+        } else {
+          // normal flow (önce sisteme şifre, sonra Google)
+          document.getElementById('userLoginScreen').classList.remove('hidden');
+        }
       } else {
         document.getElementById('systemError').classList.remove('hidden');
       }
