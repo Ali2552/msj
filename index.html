@@ -1,1032 +1,424 @@
 <!doctype html>
 <html lang="tr" class="h-full">
- <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Birlikte</title>
-  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <script src="/_sdk/element_sdk.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&amp;display=swap" rel="stylesheet">
-  <style>
-    * { font-family: 'Nunito', sans-serif; }
-    .heart-bg {
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    }
-    .glass {
-      background: rgba(255,255,255,0.1);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.2);
-    }
-    .chat-bubble-sent {
-      background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%);
-      border-radius: 20px 20px 5px 20px;
-    }
-    .chat-bubble-received {
-      background: rgba(255,255,255,0.15);
-      border-radius: 20px 20px 20px 5px;
-    }
-    .floating-hearts {
-      position: fixed;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .heart-float {
-      position: absolute;
-      animation: floatUp 6s ease-in infinite;
-      opacity: 0.3;
-    }
-    @keyframes floatUp {
-      0% { transform: translateY(100%) rotate(0deg); opacity: 0; }
-      10% { opacity: 0.3; }
-      90% { opacity: 0.3; }
-      100% { transform: translateY(-100%) rotate(360deg); opacity: 0; }
-    }
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
-    .pulse-heart { animation: pulse 2s ease-in-out infinite; }
-    .message-select-mode .message-item { cursor: pointer; }
-    .message-item.selected { background: rgba(233, 69, 96, 0.3) !important; }
-    .notebook-page {
-      background: linear-gradient(to bottom, transparent 23px, rgba(255,255,255,0.1) 24px);
-      background-size: 100% 24px;
-    }
-  </style>
-  <style>body { box-sizing: border-box; }</style>
-  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
-  <!-- Firebase SDKs for cloud messaging backup -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
- </head>
- <body class="h-full heart-bg text-white overflow-auto">
-  <div id="app" class="min-h-full relative"><!-- Floating Hearts Background -->
-   <div class="floating-hearts" id="floatingHearts"></div><!-- System Password Screen -->
-   <div id="systemLoginScreen" class="min-h-full flex items-center justify-center p-4 hidden">
-    <div class="glass rounded-3xl p-8 w-full max-w-sm text-center">
-     <div class="text-6xl mb-6 pulse-heart">
-      💕
-     </div>
-     <h1 class="text-2xl font-bold mb-2">Birlikte</h1>
-     <p class="text-white/60 mb-6">Sevgimizin Dijital Yuvası</p><input type="password" id="systemPassword" placeholder="Sistem Şifresi" class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-pink-400 mb-4 text-center"> <button onclick="checkSystemPassword()" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-red-500 font-semibold hover:opacity-90 transition"> Giriş Yap 💗 </button>
-     <p id="systemError" class="text-red-400 mt-3 text-sm hidden">Yanlış şifre!</p>
-    </div>
-   </div><!-- User Login Screen -->
-   <div id="userLoginScreen" class="min-h-full flex items-center justify-center p-4">
-    <div class="glass rounded-3xl p-8 w-full max-w-sm text-center">
-     <div class="text-5xl mb-4">
-      👫
-     </div>
-     <h2 class="text-xl font-bold mb-6">Google ile Giriş Yap</h2>
-     <button onclick="signInWithGoogle()" class="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 font-semibold hover:opacity-90 transition mb-4">Google ile Giriş</button>
-     <p class="text-white/60 text-sm">Her iki kullanıcı farklı Google hesapları kullanmalı.</p>
-    </div>
-   </div><!-- Main App -->
-   <div id="mainApp" class="min-h-full hidden"><!-- Header -->
-    <header class="glass sticky top-0 z-50 px-4 py-3">
-     <div class="flex items-center justify-between max-w-2xl mx-auto">
-      <div class="flex items-center gap-3"><span class="text-2xl">💑</span>
-       <div>
-        <h1 class="font-bold" id="welcomeUser">Hoş Geldin</h1>
-        <p class="text-xs text-white/60" id="partnerStatus">Sevgilin çevrimiçi 💚</p>
-       </div>
-      </div><button onclick="logout()" class="p-2 rounded-full hover:bg-white/10">
-       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-       </svg></button>
-     </div>
-    </header><!-- Navigation -->
-    <nav class="glass mx-4 mt-4 rounded-2xl p-2 max-w-2xl lg:mx-auto">
-     <div class="flex gap-2"><button onclick="showSection('counter')" class="nav-btn flex-1 py-2 px-3 rounded-xl bg-pink-500/30 text-sm font-semibold transition" data-section="counter"> 📅 Sayaç </button> <button onclick="showSection('chat')" class="nav-btn flex-1 py-2 px-3 rounded-xl hover:bg-white/10 text-sm font-semibold transition" data-section="chat"> 💬 Mesajlar </button> <button onclick="showSection('notebook')" class="nav-btn flex-1 py-2 px-3 rounded-xl hover:bg-white/10 text-sm font-semibold transition" data-section="notebook"> 📓 Ajanda </button>
-     </div>
-    </nav><!-- Counter Section -->
-    <section id="counterSection" class="p-4 max-w-2xl mx-auto">
-     <div class="glass rounded-3xl p-6 text-center mb-4">
-      <h2 class="text-lg text-white/70 mb-2">Birlikte Geçirdiğimiz Süre</h2>
-      <div class="text-6xl font-bold text-pink-400 mb-2" id="totalDays">
-       0
-      </div>
-      <p class="text-white/60">Gün</p>
-     </div>
-     <div class="glass rounded-3xl p-6">
-      <div class="grid grid-cols-3 gap-4 text-center">
-       <div class="bg-white/10 rounded-2xl p-4">
-        <div class="text-3xl font-bold text-pink-300" id="years">
-         0
-        </div>
-        <p class="text-sm text-white/60">Yıl</p>
-       </div>
-       <div class="bg-white/10 rounded-2xl p-4">
-        <div class="text-3xl font-bold text-pink-300" id="months">
-         0
-        </div>
-        <p class="text-sm text-white/60">Ay</p>
-       </div>
-       <div class="bg-white/10 rounded-2xl p-4">
-        <div class="text-3xl font-bold text-pink-300" id="days">
-         0
-        </div>
-        <p class="text-sm text-white/60">Gün</p>
-       </div>
-      </div>
-      <p class="text-center mt-4 text-white/50 text-sm">💕 03.05.2019'dan beri birlikte 💕</p>
-     </div>
-    </section><!-- Chat Section -->
-    <section id="chatSection" class="p-4 max-w-2xl mx-auto hidden">
-     <div class="glass rounded-3xl overflow-hidden"><!-- Chat Header -->
-      <div class="bg-white/10 px-4 py-3 flex items-center justify-between">
-       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-gradient-to-r from-pink-500 to-red-500 flex items-center justify-center text-lg" id="chatPartnerAvatar">
-         💕
-        </div>
-        <div>
-         <p class="font-semibold" id="chatPartnerName">Sevgilim</p>
-         <p class="text-xs text-green-400">Çevrimiçi</p>
-        </div>
-       </div>
-       <div class="flex gap-2 items-center">
-        <button onclick="refreshMessages()" id="refreshBtn" class="p-2 rounded-full hover:bg-white/10" title="Mesajları yenile">
-         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-         </svg></button>
-         <span id="refreshStatus" class="text-green-400 text-xs ml-2 hidden">Mesaj Başarı İle Yüklendi ✓</span>
-         <button onclick="toggleDeleteMode()" id="deleteToggleBtn" class="p-2 rounded-full hover:bg-white/10">
-         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-         </svg></button>
-       </div>
-      </div><!-- Delete Options Panel -->
-      <div id="deletePanel" class="bg-red-500/20 px-4 py-3 hidden">
-       <p class="text-sm mb-2 text-white/80">Silme Seçenekleri:</p>
-       <div class="flex flex-wrap gap-2"><button onclick="deleteMessages('24h')" class="px-3 py-1 text-xs bg-white/10 rounded-full hover:bg-red-500/50">Son 24 Saat</button> <button onclick="deleteMessages('selected')" class="px-3 py-1 text-xs bg-white/10 rounded-full hover:bg-red-500/50">Seçilenleri Sil</button> <button onclick="deleteMessages('before1month')" class="px-3 py-1 text-xs bg-white/10 rounded-full hover:bg-red-500/50">1 Ay Öncesini Sil</button> <button onclick="deleteMessages('all')" class="px-3 py-1 text-xs bg-white/10 rounded-full hover:bg-red-500/50">Tümünü Sil</button> <button onclick="toggleDeleteMode()" class="px-3 py-1 text-xs bg-white/20 rounded-full">İptal</button>
-       </div>
-      </div><!-- Messages Container -->
-      <div id="messagesContainer" class="h-80 overflow-y-auto p-4 space-y-3">
-       <div class="text-center text-white/40 text-sm py-8">
-        💕 Mesajlaşmaya başlayın 💕
-       </div>
-      </div><!-- Message Input -->
-      <div class="bg-white/5 px-4 py-3">
-       <div class="flex gap-2">
-          <input type="file" id="fileInput" class="hidden" onchange="handleFileSelected(event)">
-          <button onclick="document.getElementById('fileInput').click()" title="Dosya gönder" class="px-3 py-2 rounded-full bg-white/20 hover:bg-white/30">
-            📎
-          </button>
-          <input type="text" id="messageInput" placeholder="Mesajınızı yazın..." class="flex-1 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-pink-400" onkeypress="if(event.key==='Enter')sendMessage()">
-          <button onclick="startRecording()" id="recordBtn" class="px-4 py-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 font-semibold hover:opacity-90 transition" title="Sesli mesaj kaydet">🎤</button>
-          <button onclick="sendMessage()" id="sendBtn" class="px-6 py-2 rounded-full bg-gradient-to-r from-pink-500 to-red-500 font-semibold hover:opacity-90 transition"> Gönder </button>
-       </div>
-       <div id="recordingStatus" class="text-xs text-blue-400 mt-2 hidden">
-        🔴 Kayıt yapılıyor... <span id="recordingTime">00:00</span>
-       </div>
-      </div>
-     </div>
-    </section><!-- Notebook Section -->
-    <section id="notebookSection" class="p-4 max-w-2xl mx-auto hidden">
-     <div class="glass rounded-3xl overflow-hidden"><!-- Notebook Header -->
-      <div class="bg-white/10 px-4 py-3 flex items-center justify-between">
-       <h3 class="font-semibold flex items-center gap-2"><span>📓</span> Ajandamız</h3><button onclick="addNewPage()" class="px-3 py-1 text-sm bg-pink-500/50 rounded-full hover:bg-pink-500/70"> + Yeni Sayfa </button>
-      </div><!-- Pages List -->
-      <div id="pagesListContainer" class="max-h-40 overflow-y-auto p-3 border-b border-white/10">
-       <div class="flex flex-wrap gap-2" id="pagesList"></div>
-      </div><!-- Current Page -->
-      <div id="pageEditor" class="p-4"><input type="text" id="pageTitle" placeholder="Sayfa Başlığı" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-pink-400 mb-3 font-semibold"> <textarea id="pageContent" placeholder="Notlarınızı buraya yazın..." class="w-full h-48 px-3 py-2 rounded-lg bg-white/5 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-pink-400 resize-none notebook-page"></textarea>
-       <div class="flex gap-2 mt-3"><button onclick="savePage()" class="flex-1 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-red-500 font-semibold hover:opacity-90"> 💾 Kaydet </button> <button onclick="sharePage()" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20"> 📤 Paylaş </button> <button onclick="deletePage()" class="px-4 py-2 rounded-lg bg-red-500/30 hover:bg-red-500/50"> 🗑️ Sil </button>
-       </div>
-      </div><!-- Shared Pages Notification -->
-      <div id="sharedNotification" class="bg-green-500/20 px-4 py-3 hidden">
-       <p class="text-sm" id="sharedNotificationText"></p><button onclick="viewSharedPage()" class="mt-2 px-3 py-1 text-sm bg-green-500/50 rounded-full">Görüntüle</button> <button onclick="dismissSharedNotification()" class="mt-2 px-3 py-1 text-sm bg-white/10 rounded-full ml-2">Kapat</button>
-      </div>
-     </div>
-    </section>
-   </div>
-  </div>
-  <script>
-    // Firebase yapılandırması ve kanal anahtarı (sizin verdiğiniz POHGO_...)
-    const channelKey = 'POHGO_hrTxRY6yzIIoahZL8-nMpGosShQHPH2Oavisg';
-    let googleLoggedIn = false; // sistem şifresi sonrası mainApp gösterimi için
-    const firebaseConfig = {
-      apiKey: "AIzaSyAHacKAKo6QEeMVGXTAT0IyuVuYuxUsHxs",
-      authDomain: "msju-7b8fa.firebaseapp.com",
-      projectId: "msju-7b8fa",
-      storageBucket: "msju-7b8fa.firebasestorage.app",
-      messagingSenderId: "786626604758",
-      appId: "1:786626604758:web:7bc166fe96c4321e87a377",
-      measurementId: "G-D4JV5RQP4R"
-    };
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birlikte - Sevgimizin Dijital Yuvası</title>
+    
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 
-    firebase.initializeApp(firebaseConfig);
-    firebase.analytics();
-    const db = firebase.firestore();
-    const storage = firebase.storage(); // for file attachments
-    const messagesCol = () => {
-      if (!db) {
-        throw new Error('Firestore has not been initialized');
-      }
-      if (!channelKey) {
-        throw new Error('channelKey is missing');
-      }
-      return db.collection('coupleData').doc(channelKey).collection('messages');
-    };
-
-    let unsubscribeListener = null;
-    function startRealtimeListener() {
-      if (unsubscribeListener) return; // already listening
-      try {
-        unsubscribeListener = messagesCol()
-          .orderBy('timestamp')
-          .onSnapshot(snapshot => {
-            if (!snapshot) {
-              console.warn('Realtime listener received empty snapshot');
-              return;
-            }
-            // helpful debug output, inspect changes to figure out duplicates or missing docs
-            console.log('Realtime snapshot received', snapshot);
-            try {
-              console.log('snapshot.docChanges()', snapshot.docChanges());
-            } catch (e) {
-              console.warn('could not read docChanges()', e);
-            }
-
-            const newMsgs = [];
-            snapshot.forEach(doc => {
-              const data = doc.data() || {};
-              newMsgs.push({ id: doc.id, ...data });
-            });
-            messages = newMsgs;
-            localStorage.setItem('coupleMessages', JSON.stringify(messages));
-            if (document.getElementById('chatSection').classList.contains('hidden') === false) {
-              loadMessages();
-            }
-          }, err => {
-            console.error('Realtime listener hata', err.code, err.message, err);
-            // common troubleshooting hints
-            if (err.code === 'permission-denied') {
-              alert('Okuma/yazma izni reddedildi. Firestore güvenlik kurallarını kontrol edin.');
-            }
-            if (err.code === 'unimplemented') {
-              alert('Realtime özelliği bu platformda desteklenmiyor olabilir.');
-            }
-          });
-      } catch (e) {
-        console.error('startRealtimeListener threw exception', e);
-      }
-    }
-
-    // Bulut kaydetme / yükleme helper'ları
-    function saveAllToFirebase() {
-      db.collection('coupleData').doc(channelKey).set({
-        messages,
-        notebookPages,
-        sharedPages
-      }).catch(console.error);
-    }
-
-    // Firebase Auth (Google) helpers
-    function signInWithGoogle() {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      // optional: specify web client id if needed
-      provider.addScope('profile');
-      provider.addScope('email');
-      provider.setCustomParameters({
-        // this is the OAuth client ID you provided
-        client_id: '786626604758-96r2m1776ar78sh07lbjoddhan89h7rv.apps.googleusercontent.com'
-      });
-      firebase.auth().signInWithPopup(provider).catch(err => {
-        console.error('Google sign-in error', err);
-      });
-    }
-
-    function handleGoogleUser(user) {
-      if (!user) return;
-      // her Google kullanıcı için bir persona seçme: UID ile eşleştir
-      let personaMap = JSON.parse(localStorage.getItem('personaByUid') || '{}');
-      let persona = personaMap[user.uid];
-      if (!persona) {
-        // kullanıcıya hangi isimle devam edeceğini sor using confirm to prevent typing mistakes
-        const choice = confirm('Alişş olarak devam etmek istiyorsan Tamam, Betüşşş için İptal tuşuna bas.');
-        persona = choice ? 'Alişş' : 'Betüşşş';
-        personaMap[user.uid] = persona;
-        localStorage.setItem('personaByUid', JSON.stringify(personaMap));
-      }
-      currentUser = persona;
-      const u = users[currentUser];
-      document.getElementById('userLoginScreen').classList.add('hidden');
-      document.getElementById('systemLoginScreen').classList.remove('hidden');
-      googleLoggedIn = true;
-      document.getElementById('welcomeUser').textContent = `Hoş Geldin ${currentUser} 💕`;
-      document.getElementById('chatPartnerName').textContent = u.partner;
-      document.getElementById('chatPartnerAvatar').textContent = users[u.partner].avatar;
-      document.getElementById('partnerStatus').textContent = `${u.partner} çevrimiçi 💚`;
-
-      if (!notebookPages[currentUser]) {
-        notebookPages[currentUser] = [];
-      }
-      loadAllFromFirebase(() => {
-        calculateTime();
-        loadMessages();
-        loadPages();
-        checkSharedPages();
-        startRealtimeListener();
-      });
-    }
-
-    firebase.auth().onAuthStateChanged(user => {
-      if (user) {
-        handleGoogleUser(user);
-      } else {
-        // show login screen if not already visible
-        document.getElementById('mainApp').classList.add('hidden');
-        document.getElementById('userLoginScreen').classList.remove('hidden');
-      }
-    });
-
-    function loadAllFromFirebase(callback) {
-      db.collection('coupleData').doc(channelKey).get().then(doc => {
-        if (doc.exists) {
-          const data = doc.data();
-          messages = data.messages || [];
-          notebookPages = data.notebookPages || {};
-          sharedPages = data.sharedPages || {};
-          localStorage.setItem('coupleMessages', JSON.stringify(messages));
-          localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
-          localStorage.setItem('sharedPages', JSON.stringify(sharedPages));
-        }
-        if (callback) callback();
-      }).catch(err => {
-        console.error('Firebase yükleme hatası', err);
-        if (callback) callback();
-      });
-    }
-
-    // App State
-    let currentUser = null;
-    let messages = JSON.parse(localStorage.getItem('coupleMessages') || '[]');
-    let notebookPages = JSON.parse(localStorage.getItem('notebookPages') || '{}');
-    let sharedPages = JSON.parse(localStorage.getItem('sharedPages') || '{}');
-    let currentPageId = null;
-    let deleteMode = false;
-    let selectedMessages = new Set();
-    let isSending = false;
-    let isRecording = false;
-    let mediaRecorder = null;
-    let recordingStartTime = null;
-    let recordingInterval = null;
-    let audioChunks = [];
-
-    // Users Data (alias-based, firebasede gmail farkı olmadan seçilecek)
-    const users = {
-      'Alişş': { partner: 'Betüşşş', avatar: '💙' },
-      'Betüşşş': { partner: 'Alişş', avatar: '💗' }
-    };
-
-    // Start Date
-    const startDate = new Date(2019, 4, 3); // 03.05.2019
-
-    // Config for Element SDK
-    const defaultConfig = {
-      app_title: 'Birlikte',
-      primary_color: '#e94560',
-      secondary_color: '#1a1a2e',
-      text_color: '#ffffff',
-      accent_color: '#ff6b6b',
-      surface_color: '#16213e'
-    };
-
-    let config = { ...defaultConfig };
-
-    // Initialize Element SDK
-    if (window.elementSdk) {
-      window.elementSdk.init({
-        defaultConfig,
-        onConfigChange: async (newConfig) => {
-          config = { ...config, ...newConfig };
-          applyConfig();
-        },
-        mapToCapabilities: (cfg) => ({
-          recolorables: [
-            { get: () => cfg.primary_color || defaultConfig.primary_color, set: (v) => window.elementSdk.setConfig({ primary_color: v }) },
-            { get: () => cfg.secondary_color || defaultConfig.secondary_color, set: (v) => window.elementSdk.setConfig({ secondary_color: v }) },
-            { get: () => cfg.text_color || defaultConfig.text_color, set: (v) => window.elementSdk.setConfig({ text_color: v }) },
-            { get: () => cfg.accent_color || defaultConfig.accent_color, set: (v) => window.elementSdk.setConfig({ accent_color: v }) },
-            { get: () => cfg.surface_color || defaultConfig.surface_color, set: (v) => window.elementSdk.setConfig({ surface_color: v }) }
-          ],
-          borderables: [],
-          fontEditable: undefined,
-          fontSizeable: undefined
-        }),
-        mapToEditPanelValues: (cfg) => new Map([
-          ['app_title', cfg.app_title || defaultConfig.app_title]
-        ])
-      });
-    }
-
-    function applyConfig() {
-      document.documentElement.style.setProperty('--primary', config.primary_color);
-    }
-
-    // Create Floating Hearts
-    function createFloatingHearts() {
-      const container = document.getElementById('floatingHearts');
-      container.innerHTML = '';
-      for (let i = 0; i < 15; i++) {
-        const heart = document.createElement('div');
-        heart.className = 'heart-float';
-        heart.innerHTML = ['💕', '💗', '💖', '💝', '❤️'][Math.floor(Math.random() * 5)];
-        heart.style.left = Math.random() * 100 + '%';
-        heart.style.animationDelay = Math.random() * 6 + 's';
-        heart.style.fontSize = (Math.random() * 20 + 10) + 'px';
-        container.appendChild(heart);
-      }
-    }
-
-    // System Password Check
-    function checkSystemPassword() {
-      const password = document.getElementById('systemPassword').value;
-      if (password === 'Kalp') {
-        document.getElementById('systemLoginScreen').classList.add('hidden');
-        document.getElementById('systemError').classList.add('hidden');
-        if (googleLoggedIn) {
-          // Google ile doğrulu tamamsa uygulamayı başlat
-          document.getElementById('mainApp').classList.remove('hidden');
-          calculateTime();
-          loadMessages();
-          loadPages();
-          checkSharedPages();
-          startRealtimeListener();
-        } else {
-          // normal flow (önce sisteme şifre, sonra Google)
-          document.getElementById('userLoginScreen').classList.remove('hidden');
-        }
-      } else {
-        document.getElementById('systemError').classList.remove('hidden');
-      }
-    }
-
-    // User Login
-    // eski kullanıcı girişi artık kullanılmıyor, Google Auth üzerinden ilerleniyor
-    function userLogin() {
-      // placeholder; not called
-    }
-
-    // stop realtime listener helper
-    function stopRealtimeListener() {
-      if (unsubscribeListener) {
-        try {
-          unsubscribeListener();
-        } catch (e) {
-          console.warn('error while unsubscribing', e);
-        }
-        unsubscribeListener = null;
-      }
-    }
-
-    // Logout
-    function logout() {
-      currentUser = null;
-      googleLoggedIn = false;
-      stopRealtimeListener();
-      document.getElementById('mainApp').classList.add('hidden');
-      document.getElementById('userLoginScreen').classList.remove('hidden');
-      firebase.auth().signOut();
-    }
-
-    // Calculate Time Together
-    function calculateTime() {
-      const now = new Date();
-      const diff = now - startDate;
-      
-      const totalDays = Math.floor(diff / (1000 * 60 * 60 * 24));
-      document.getElementById('totalDays').textContent = totalDays.toLocaleString('tr-TR');
-      
-      let years = now.getFullYear() - startDate.getFullYear();
-      let months = now.getMonth() - startDate.getMonth();
-      let days = now.getDate() - startDate.getDate();
-      
-      if (days < 0) {
-        months--;
-        const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-        days += prevMonth.getDate();
-      }
-      
-      if (months < 0) {
-        years--;
-        months += 12;
-      }
-      
-      document.getElementById('years').textContent = years;
-      document.getElementById('months').textContent = months;
-      document.getElementById('days').textContent = days;
-    }
-
-    // Show Section
-    function showSection(section) {
-      document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.remove('bg-pink-500/30');
-        btn.classList.add('hover:bg-white/10');
-      });
-      document.querySelector(`[data-section="${section}"]`).classList.add('bg-pink-500/30');
-      document.querySelector(`[data-section="${section}"]`).classList.remove('hover:bg-white/10');
-      
-      document.getElementById('counterSection').classList.add('hidden');
-      document.getElementById('chatSection').classList.add('hidden');
-      document.getElementById('notebookSection').classList.add('hidden');
-      document.getElementById(`${section}Section`).classList.remove('hidden');
-      
-      if (section === 'chat') {
-        refreshMessages();
-      } else if (section === 'notebook') {
-        loadAllFromFirebase(() => {
-          loadPages();
-          checkSharedPages();
-        });
-      }
-    }
-
-    // Chat Functions
-    function loadMessages() {
-      const container = document.getElementById('messagesContainer');
-      messages = JSON.parse(localStorage.getItem('coupleMessages') || '[]');
-      
-      // sort by timestamp in case
-      messages.sort((a,b)=>a.timestamp-b.timestamp);
-      
-      // Gelen mesajları görüldü olarak işaretle
-      messages.forEach(msg => {
-        if (msg.sender !== currentUser && !msg.seen) {
-          msg.seen = true;
-        }
-      });
-      localStorage.setItem('coupleMessages', JSON.stringify(messages));
-      
-      if (messages.length === 0) {
-        container.innerHTML = '<div class="text-center text-white/40 text-sm py-8">💕 Mesajlaşmaya başlayın 💕</div>';
-        return;
-      }
-      
-      container.innerHTML = messages.map((msg, index) => {
-        let content = '';
-        if (msg.type === 'text') {
-          content = `<p class="text-sm">${escapeHtml(msg.text)}</p>`;
-        } else if (msg.type === 'audio') {
-          content = `<div class="flex items-center gap-2"><button onclick="playAudio('${index}')" class="px-2 py-1 bg-white/20 rounded hover:bg-white/30">▶️ Oynat</button><span class="text-xs text-white/60">${msg.duration || 'Sesli mesaj'}</span></div>`;
-        } else if (msg.type === 'file') {
-          // display based on extension
-          const url = msg.url || '';
-          const name = escapeHtml(msg.fileName || 'dosya');
-          if (msg.fileType && msg.fileType.startsWith('image/')) {
-            content = `<img src="${url}" class="max-w-xs rounded" /> <div><a href="${url}" download="${name}" class="text-xs text-blue-300">${name} indir</a></div>`;
-          } else if (msg.fileType && msg.fileType.startsWith('video/')) {
-            content = `<video src="${url}" controls class="max-w-xs rounded"></video> <div><a href="${url}" download="${name}" class="text-xs text-blue-300">${name} indir</a></div>`;
-          } else {
-            content = `<a href="${url}" download="${name}" class="text-xs text-blue-300">📎 ${name}</a>`;
-          }
-        }
+    <style>
+        * { font-family: 'Nunito', sans-serif; box-sizing: border-box; }
+        :root { --primary: #e94560; --secondary: #1a1a2e; }
         
-        let statusIcon = '';
-        if (msg.sender === currentUser) {
-          if (msg.seen) {
-            statusIcon = '<span class="text-blue-400 text-xs ml-1">✓✓</span>';
-          } else {
-            statusIcon = '<span class="text-white/40 text-xs ml-1">✓✓</span>';
-          }
-        }
+        .heart-bg { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); background-attachment: fixed; }
+        .glass { background: rgba(255,255,255,0.08); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
         
-        return `
-          <div class="message-item flex ${msg.sender === currentUser ? 'justify-end' : 'justify-start'} ${selectedMessages.has(msg.id) ? 'selected' : ''}" 
-               data-id="${msg.id}" ${deleteMode ? `onclick="toggleSelectMessage('${msg.id}')"` : ''}>
-            <div class="${msg.sender === currentUser ? 'chat-bubble-sent' : 'chat-bubble-received'} px-4 py-2 max-w-xs">
-              ${content}
-              <div class="flex items-center justify-between mt-1">
-                <p class="text-xs ${msg.sender === currentUser ? 'text-white/60' : 'text-white/40'}">${formatTime(msg.timestamp)}</p>
-                ${statusIcon}
-              </div>
+        /* Mesaj Balonları */
+        .chat-bubble-sent { background: linear-gradient(135deg, #e94560 0%, #ff6b6b 100%); border-radius: 20px 20px 4px 20px; box-shadow: 0 4px 15px rgba(233, 69, 96, 0.3); }
+        .chat-bubble-received { background: rgba(255,255,255,0.12); border-radius: 20px 20px 20px 4px; }
+        
+        /* Animasyonlar */
+        .floating-hearts { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+        .heart-float { position: absolute; animation: floatUp 7s ease-in infinite; opacity: 0; }
+        @keyframes floatUp {
+            0% { transform: translateY(110vh) scale(0.5) rotate(0deg); opacity: 0; }
+            20% { opacity: 0.4; }
+            80% { opacity: 0.4; }
+            100% { transform: translateY(-20vh) scale(1.2) rotate(360deg); opacity: 0; }
+        }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+        .pulse-heart { animation: pulse 2s ease-in-out infinite; display: inline-block; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        
+        .notebook-page { background: linear-gradient(to bottom, transparent 27px, rgba(255,255,255,0.05) 28px); background-size: 100% 28px; line-height: 28px; }
+        .nav-active { background: rgba(233, 69, 96, 0.25) !important; color: #ff6b6b; border: 1px solid rgba(233, 69, 96, 0.4); }
+    </style>
+</head>
+<body class="h-full heart-bg text-white overflow-x-hidden">
+
+    <div id="app" class="min-h-screen relative flex flex-col">
+        <div class="floating-hearts" id="floatingHearts"></div>
+
+        <div id="systemLoginScreen" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#1a1a2e]">
+            <div class="glass rounded-[2rem] p-10 w-full max-w-sm text-center">
+                <div class="text-7xl mb-6 pulse-heart">💖</div>
+                <h1 class="text-3xl font-extrabold mb-2 tracking-tight">Birlikte</h1>
+                <p class="text-white/50 mb-8 text-sm italic">"Aşkımızın dijital kalesi..."</p>
+                <div class="relative">
+                    <input type="password" id="systemPassword" placeholder="Giriş Şifresi" class="w-full px-5 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/20 focus:outline-none focus:border-pink-500 mb-4 text-center transition-all">
+                </div>
+                <button onclick="checkSystemPassword()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-pink-500 to-red-600 font-bold text-lg shadow-lg hover:scale-[1.02] active:scale-95 transition-all">Giriş Yap</button>
+                <p id="systemError" class="text-red-400 mt-4 text-sm font-medium hidden">❌ Hatalı şifre, tekrar dene sevgilim.</p>
             </div>
-          </div>
-        `;
-      }).join('');
-      
-      container.scrollTop = container.scrollHeight;
-    }
+        </div>
 
-    function refreshMessages() {
-      // force reload from firestore
-      messagesCol().orderBy('timestamp').get().then(snap => {
-        const arr = [];
-        snap.forEach(d=>arr.push(d.data()));
-        messages = arr;
-        localStorage.setItem('coupleMessages', JSON.stringify(messages));
-        loadMessages();
-        showRefreshSuccess(snap.size);
-      }).catch(err => {
-        console.error('refreshMessages error', err);
-      });
-    }
+        <div id="userLoginScreen" class="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-[#16213e] hidden">
+            <div class="glass rounded-[2rem] p-10 w-full max-w-sm text-center">
+                <div class="text-6xl mb-6">🔐</div>
+                <h2 class="text-2xl font-bold mb-4">Kimliği Doğrula</h2>
+                <p class="text-white/60 mb-8 text-sm">Verilerinizin güvenliği için lütfen Google hesabınla giriş yap.</p>
+                <button onclick="signInWithGoogle()" class="w-full py-4 rounded-2xl bg-white text-black font-bold flex items-center justify-center gap-3 hover:bg-gray-200 transition-all shadow-xl">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6">
+                    Google ile Devam Et
+                </button>
+            </div>
+        </div>
 
-    function showRefreshSuccess(count) {
-      const status = document.getElementById('refreshStatus');
-      if (!status) return;
-      status.textContent = `Mesaj Başarı İle Yüklendi ${count || ''}`.trim() + ' ✓';
-      status.classList.remove('hidden');
-      // temporarily highlight refresh button
-      const btn = document.getElementById('refreshBtn');
-      if (btn) {
-        btn.classList.add('bg-green-500/20');
-        setTimeout(() => btn.classList.remove('bg-green-500/20'), 2000);
-      }
-      setTimeout(() => {
-        status.classList.add('hidden');
-      }, 3000);
-    }
+        <div id="mainApp" class="flex-1 flex flex-col hidden opacity-0 transition-opacity duration-700">
+            <header class="glass sticky top-0 z-50 px-6 py-4 mx-4 mt-4 rounded-2xl">
+                <div class="flex items-center justify-between max-w-4xl mx-auto">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-500 to-red-500 flex items-center justify-center text-2xl shadow-inner shadow-white/20">👩‍❤️‍👨</div>
+                        <div>
+                            <h1 class="font-bold text-lg" id="welcomeUser">Yükleniyor...</h1>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                <p class="text-[10px] uppercase tracking-widest text-green-400 font-bold" id="partnerStatus">Sevgilin Çevrimiçi</p>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="logout()" class="p-3 rounded-xl bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-400 transition-all">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </button>
+                </div>
+            </header>
 
-    async function sendMessage() {
-      if (isSending) return;
-      
-      const input = document.getElementById('messageInput');
-      const text = input.value.trim();
-      
-      if (!text) return;
-      
-      isSending = true;
-      const sendBtn = document.getElementById('sendBtn');
-      sendBtn.textContent = '...';
-      sendBtn.disabled = true;
-      
-      const message = {
-        sender: currentUser,
-        text: text,
-        type: 'text',
-        timestamp: Date.now()
-      };
-      try {
-        await messagesCol().add(message);
-      } catch(err){console.error(err);}      
-      // optimistic update
-      messages.push(message);
-      localStorage.setItem('coupleMessages', JSON.stringify(messages));
-      input.value = '';
-      loadMessages();
-      
-      isSending = false;
-      sendBtn.textContent = 'Gönder';
-      sendBtn.disabled = false;
-    }
+            <nav class="px-4 py-6 max-w-4xl mx-auto w-full">
+                <div class="glass rounded-2xl p-1.5 flex gap-2">
+                    <button onclick="showSection('counter')" class="nav-btn flex-1 py-3 px-2 rounded-xl text-xs font-bold transition-all nav-active" data-section="counter">📅 GÜNLERİMİZ</button>
+                    <button onclick="showSection('chat')" class="nav-btn flex-1 py-3 px-2 rounded-xl text-xs font-bold transition-all hover:bg-white/5" data-section="chat">💬 MESAJLAR</button>
+                    <button onclick="showSection('notebook')" class="nav-btn flex-1 py-3 px-2 rounded-xl text-xs font-bold transition-all hover:bg-white/5" data-section="notebook">📓 AJANDAMIZ</button>
+                </div>
+            </nav>
 
-    async function startRecording() {
-      if (isRecording) {
-        stopRecording();
-        return;
-      }
+            <main class="flex-1 px-4 pb-24 max-w-4xl mx-auto w-full">
+                <section id="counterSection" class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div class="glass rounded-[2.5rem] p-10 text-center relative overflow-hidden">
+                        <div class="absolute -top-10 -right-10 w-40 h-40 bg-pink-500/10 rounded-full blur-3xl"></div>
+                        <h2 class="text-white/50 font-bold uppercase tracking-[0.2em] text-xs mb-4">Aşkımızın Toplam Süresi</h2>
+                        <div class="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-white/40 mb-2" id="totalDays">0</div>
+                        <p class="text-pink-400 font-bold text-xl uppercase tracking-widest">Muhteşem Gün</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="glass rounded-3xl p-6 text-center group hover:bg-white/10 transition-all">
+                            <div class="text-4xl font-bold text-pink-400 mb-1" id="years">0</div>
+                            <p class="text-[10px] text-white/40 uppercase font-bold tracking-widest">Yıl</p>
+                        </div>
+                        <div class="glass rounded-3xl p-6 text-center group hover:bg-white/10 transition-all">
+                            <div class="text-4xl font-bold text-pink-400 mb-1" id="months">0</div>
+                            <p class="text-[10px] text-white/40 uppercase font-bold tracking-widest">Ay</p>
+                        </div>
+                        <div class="glass rounded-3xl p-6 text-center group hover:bg-white/10 transition-all">
+                            <div class="text-4xl font-bold text-pink-400 mb-1" id="days">0</div>
+                            <p class="text-[10px] text-white/40 uppercase font-bold tracking-widest">Gün</p>
+                        </div>
+                    </div>
+                    <div class="text-center p-6 glass rounded-3xl border-dashed">
+                        <p class="text-white/40 italic text-sm">"Her saniyesi bir ömre bedel... 💕 03.05.2019"</p>
+                    </div>
+                </section>
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioChunks = [];
-        mediaRecorder = new MediaRecorder(stream);
-        
-        mediaRecorder.ondataavailable = (e) => {
-          audioChunks.push(e.data);
+                <section id="chatSection" class="hidden h-[600px] flex flex-col animate-in fade-in duration-500">
+                    <div class="glass rounded-[2rem] overflow-hidden flex-1 flex flex-col border-pink-500/20">
+                        <div class="bg-white/5 px-6 py-4 flex items-center justify-between border-b border-white/10">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-pink-500 flex items-center justify-center shadow-lg" id="chatPartnerAvatar">💖</div>
+                                <p class="font-bold tracking-tight" id="chatPartnerName">Sevgilim</p>
+                            </div>
+                            <div class="flex gap-1">
+                                <button onclick="clearChat()" class="p-2 hover:bg-red-500/20 rounded-lg text-white/20 hover:text-red-400 transition-all" title="Sohbeti Temizle">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="messagesContainer" class="flex-1 overflow-y-auto p-6 space-y-4 bg-black/10">
+                            <div class="flex flex-col items-center justify-center h-full text-white/20 space-y-2">
+                                <span class="text-5xl">💌</span>
+                                <p class="text-sm font-medium italic">Sohbeti başlatmak için bir şeyler yaz...</p>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-white/5 border-t border-white/10">
+                            <div id="recordingStatus" class="hidden mb-2 flex items-center gap-2 text-red-400 text-xs font-bold animate-pulse">
+                                <span>🔴 KAYDEDİLİYOR...</span> <span id="recordingTime">00:00</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <input type="file" id="fileInput" class="hidden" onchange="handleFileUpload(event)">
+                                <button onclick="document.getElementById('fileInput').click()" class="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all">📎</button>
+                                <button onclick="toggleVoiceRecord()" id="recordBtn" class="p-3 bg-white/5 hover:bg-blue-500/20 rounded-2xl transition-all">🎤</button>
+                                <input type="text" id="messageInput" placeholder="Seni seviyorum de..." class="flex-1 px-5 py-3 rounded-2xl bg-white/5 border border-white/10 focus:outline-none focus:border-pink-500 transition-all" onkeypress="if(event.key==='Enter')sendMsg()">
+                                <button onclick="sendMsg()" class="p-3 bg-gradient-to-br from-pink-500 to-red-600 rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all">
+                                    <svg class="w-6 h-6 rotate-90" fill="currentColor" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="notebookSection" class="hidden animate-in fade-in duration-500">
+                    <div class="glass rounded-[2rem] overflow-hidden flex flex-col">
+                        <div class="bg-white/5 px-6 py-4 flex items-center justify-between border-b border-white/10">
+                            <h3 class="font-bold flex items-center gap-2"><span>📓</span> Ortak Notlarımız</h3>
+                            <button onclick="saveNote()" class="px-5 py-2 text-sm font-bold bg-green-500/20 text-green-400 border border-green-500/30 rounded-xl hover:bg-green-500 transition-all hover:text-white">💾 KAYDET</button>
+                        </div>
+                        <div class="p-6">
+                            <textarea id="notebookContent" class="w-full h-96 bg-transparent border-none focus:outline-none notebook-page text-lg text-white/80 resize-none" placeholder="Buraya bıraktığın her not sevgiline de ulaşacak..."></textarea>
+                        </div>
+                        <div class="px-6 py-3 bg-black/20 text-[10px] text-white/30 uppercase tracking-widest text-center" id="lastUpdate">Son Güncelleme: Henüz yok</div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // 1. FIREBASE CONFIGURATION (BURAYI KENDI BILGILERINLE DOLDUR)
+        const firebaseConfig = {
+            apiKey: "AIzaSyAHacKAKo6QEeMVGXTAT0IyuVuYuxUsHxs",
+            authDomain: "msju-7b8fa.firebaseapp.com",
+            databaseURL: "https://msju-7b8fa-default-rtdb.firebaseio.com", // Ekran görüntüsündeki hata için BURASI Realtime Database olmalı!
+            projectId: "msju-7b8fa",
+            storageBucket: "msju-7b8fa.appspot.com",
+            messagingSenderId: "786626604758",
+            appId: "1:786626604758:web:7bc166fe96c4321e87a377"
         };
-        
-        mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const audioData = e.target.result;
-            const duration = recordingStartTime ? Math.floor((Date.now() - recordingStartTime) / 1000) : 0;
-            const durationStr = `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}`;
+
+        // Firebase Init
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+        const storage = firebase.storage();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        let currentUser = null;
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        const startDate = new Date(2019, 4, 3); // 03.05.2019
+
+        // Sistem Girişi (Basit Şifre)
+        function checkSystemPassword() {
+            const pass = document.getElementById('systemPassword').value;
+            if(pass === 'Kalp') {
+                document.getElementById('systemLoginScreen').style.display = 'none';
+                document.getElementById('userLoginScreen').classList.remove('hidden');
+            } else {
+                document.getElementById('systemError').classList.remove('hidden');
+            }
+        }
+
+        // Google Giriş
+        function signInWithGoogle() {
+            auth.signInWithPopup(provider).then((result) => {
+                // Giriş başarılı, onAuthStateChanged tetiklenecek
+            }).catch(err => alert("Giriş başarısız: " + err.message));
+        }
+
+        // Auth Takibi
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                setupApp();
+            } else {
+                document.getElementById('mainApp').classList.add('hidden');
+            }
+        });
+
+        function setupApp() {
+            document.getElementById('userLoginScreen').classList.add('hidden');
+            const mainApp = document.getElementById('mainApp');
+            mainApp.classList.remove('hidden');
+            setTimeout(() => mainApp.style.opacity = '1', 50);
+
+            document.getElementById('welcomeUser').textContent = `Hoş Geldin Sevgilim`;
             
-            const message = {
-              sender: currentUser,
-              type: 'audio',
-              audio: audioData,
-              duration: durationStr,
-              timestamp: Date.now()
+            // Veri Dinleyicileri Başlat
+            startCounter();
+            listenMessages();
+            listenNotebook();
+            createHearts();
+        }
+
+        // --- SAYAÇ FONKSİYONLARI ---
+        function startCounter() {
+            const update = () => {
+                const now = new Date();
+                const diff = now - startDate;
+                const totalDays = Math.floor(diff / (1000 * 60 * 60 * 24));
+                document.getElementById('totalDays').textContent = totalDays.toLocaleString('tr-TR');
+
+                let y = now.getFullYear() - startDate.getFullYear();
+                let m = now.getMonth() - startDate.getMonth();
+                let d = now.getDate() - startDate.getDate();
+                if(d < 0) { m--; d += new Date(now.getFullYear(), now.getMonth(), 0).getDate(); }
+                if(m < 0) { y--; m += 12; }
+                
+                document.getElementById('years').textContent = y;
+                document.getElementById('months').textContent = m;
+                document.getElementById('days').textContent = d;
             };
+            update();
+            setInterval(update, 3600000);
+        }
+
+        // --- MESAJLAŞMA FONKSİYONLARI ---
+        function sendMsg() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if(!text) return;
+
+            db.ref('messages').push({
+                senderUid: currentUser.uid,
+                senderName: currentUser.displayName,
+                text: text,
+                type: 'text',
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            input.value = '';
+        }
+
+        function listenMessages() {
+            db.ref('messages').limitToLast(50).on('value', snapshot => {
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = '';
+                snapshot.forEach(child => {
+                    const msg = child.val();
+                    const isMe = msg.senderUid === currentUser.uid;
+                    const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+                    
+                    let content = `<p class="text-sm leading-relaxed">${escapeHtml(msg.text)}</p>`;
+                    if(msg.type === 'image') content = `<img src="${msg.url}" class="rounded-xl max-h-64 cursor-pointer" onclick="window.open('${msg.url}')">`;
+                    if(msg.type === 'audio') content = `<audio src="${msg.url}" controls class="w-full max-w-[200px] h-8"></audio>`;
+
+                    container.innerHTML += `
+                        <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
+                            <div class="${isMe ? 'chat-bubble-sent' : 'chat-bubble-received'} px-4 py-3 max-w-[85%] animate-in zoom-in-95 duration-300">
+                                ${content}
+                                <p class="text-[9px] mt-1 opacity-40 text-right">${time}</p>
+                            </div>
+                        </div>`;
+                });
+                container.scrollTop = container.scrollHeight;
+            });
+        }
+
+        // Fotoğraf Yükleme
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const ref = storage.ref(`chat_uploads/${Date.now()}_${file.name}`);
+            await ref.put(file);
+            const url = await ref.getDownloadURL();
             
-            messages.push(message);
-            localStorage.setItem('coupleMessages', JSON.stringify(messages));
-            loadMessages();
-          };
-          reader.readAsDataURL(audioBlob);
-          
-          stream.getTracks().forEach(track => track.stop());
-        };
-        
-        isRecording = true;
-        recordingStartTime = Date.now();
-        mediaRecorder.start();
-        
-        document.getElementById('recordingStatus').classList.remove('hidden');
-        document.getElementById('recordBtn').textContent = '⏹️';
-        
-        recordingInterval = setInterval(() => {
-          const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
-          document.getElementById('recordingTime').textContent = 
-            `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
-        }, 100);
-      } catch (err) {
-        alert('Mikrofon erişimi reddedildi!');
-      }
-    }
+            db.ref('messages').push({
+                senderUid: currentUser.uid,
+                type: file.type.startsWith('image/') ? 'image' : 'file',
+                url: url,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
 
-    function stopRecording() {
-      if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        clearInterval(recordingInterval);
-        document.getElementById('recordingStatus').classList.add('hidden');
-        document.getElementById('recordBtn').textContent = '🎤';
-      }
-    }
-
-    function playAudio(index) {
-      const message = messages[index];
-      if (message && message.type === 'audio' && message.audio) {
-        const audio = new Audio(message.audio);
-        audio.play();
-      }
-    }
-
-    async function handleFileSelected(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const path = `${channelKey}/attachments/${Date.now()}_${file.name}`;
-      const ref = storage.ref(path);
-      try {
-        const snap = await ref.put(file);
-        const url = await snap.ref.getDownloadURL();
-        const message = {
-          sender: currentUser,
-          type: 'file',
-          url,
-          fileName: file.name,
-          fileType: file.type,
-          timestamp: Date.now()
-        };
-        await messagesCol().add(message);
-      } catch(err){
-        console.error('upload error', err);
-      }
-    }
-    function toggleDeleteMode() {
-      deleteMode = !deleteMode;
-      selectedMessages.clear();
-      
-      const panel = document.getElementById('deletePanel');
-      const container = document.getElementById('messagesContainer');
-      const toggleBtn = document.getElementById('deleteToggleBtn');
-      
-      if (deleteMode) {
-        panel.classList.remove('hidden');
-        container.classList.add('message-select-mode');
-        toggleBtn.classList.add('text-red-400');
-      } else {
-        panel.classList.add('hidden');
-        container.classList.remove('message-select-mode');
-        toggleBtn.classList.remove('text-red-400');
-        loadMessages();
-      }
-    }
-
-    function toggleSelectMessage(id) {
-      if (!deleteMode) return;
-      
-      if (selectedMessages.has(id)) {
-        selectedMessages.delete(id);
-      } else {
-        selectedMessages.add(id);
-      }
-      loadMessages();
-    }
-
-    function deleteMessages(type) {
-      const now = Date.now();
-      const oneDay = 24 * 60 * 60 * 1000;
-      const oneMonth = 30 * oneDay;
-      
-      switch(type) {
-        case '24h':
-          // delete docs older than 24h
-          messages.forEach(msg => {
-            if (now - msg.timestamp > oneDay && msg.id) {
-              messagesCol().doc(msg.id).delete().catch(console.error);
+        // Ses Kaydı (Basitleştirilmiş)
+        async function toggleVoiceRecord() {
+            if(!isRecording) {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const ref = storage.ref(`voice_notes/${Date.now()}.webm`);
+                    await ref.put(blob);
+                    const url = await ref.getDownloadURL();
+                    db.ref('messages').push({ senderUid: currentUser.uid, type: 'audio', url: url, timestamp: firebase.database.ServerValue.TIMESTAMP });
+                };
+                mediaRecorder.start();
+                isRecording = true;
+                document.getElementById('recordingStatus').classList.remove('hidden');
+                document.getElementById('recordBtn').classList.add('bg-red-500/40');
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                document.getElementById('recordingStatus').classList.add('hidden');
+                document.getElementById('recordBtn').classList.remove('bg-red-500/40');
             }
-          });
-          messages = messages.filter(m => now - m.timestamp > oneDay);
-          break;
-        case 'selected':
-          selectedMessages.forEach(id => {
-            messagesCol().doc(id).delete().catch(console.error);
-          });
-          messages = messages.filter(m => !selectedMessages.has(m.id));
-          break;
-        case 'before1month':
-          messages.forEach(msg => {
-            if (now - msg.timestamp > oneMonth && msg.id) {
-              messagesCol().doc(msg.id).delete().catch(console.error);
+        }
+
+        // --- AJANDA FONKSİYONLARI ---
+        function saveNote() {
+            const content = document.getElementById('notebookContent').value;
+            db.ref('shared_notebook').set({
+                content: content,
+                updatedBy: currentUser.displayName,
+                lastUpdate: firebase.database.ServerValue.TIMESTAMP
+            }).then(() => alert("Notlar aşkla kaydedildi! ✨"));
+        }
+
+        function listenNotebook() {
+            db.ref('shared_notebook').on('value', snapshot => {
+                const data = snapshot.val();
+                if(data) {
+                    const editor = document.getElementById('notebookContent');
+                    // Sadece biz yazmıyorsak güncelle (imleç kaymaması için)
+                    if(document.activeElement !== editor) {
+                        editor.value = data.content || '';
+                    }
+                    const date = new Date(data.lastUpdate).toLocaleString();
+                    document.getElementById('lastUpdate').textContent = `Son Güncelleme: ${date} (${data.updatedBy})`;
+                }
+            });
+        }
+
+        // --- UTILITY ---
+        function showSection(id) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(id + 'Section').classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('nav-active'));
+            document.querySelector(`[data-section="${id}"]`).classList.add('nav-active');
+        }
+
+        function createHearts() {
+            const container = document.getElementById('floatingHearts');
+            const symbols = ['💕', '💗', '💖', '💝', '❤️', '🌸'];
+            setInterval(() => {
+                const heart = document.createElement('div');
+                heart.className = 'heart-float';
+                heart.innerHTML = symbols[Math.floor(Math.random() * symbols.length)];
+                heart.style.left = Math.random() * 100 + 'vw';
+                heart.style.fontSize = (Math.random() * 20 + 15) + 'px';
+                heart.style.animationDuration = (Math.random() * 3 + 5) + 's';
+                container.appendChild(heart);
+                setTimeout(() => heart.remove(), 7000);
+            }, 1000);
+        }
+
+        function logout() {
+            auth.signOut().then(() => location.reload());
+        }
+
+        function clearChat() {
+            if(confirm("Tüm anıları silmek istediğine emin misin?")) {
+                db.ref('messages').remove();
             }
-          });
-          messages = messages.filter(m => now - m.timestamp < oneMonth);
-          break;
-        case 'all':
-          // delete all docs
-          messages.forEach(msg => {
-            if (msg.id) messagesCol().doc(msg.id).delete().catch(console.error);
-          });
-          messages = [];
-          break;
-      }
-      
-      localStorage.setItem('coupleMessages', JSON.stringify(messages));
-      selectedMessages.clear();
-      toggleDeleteMode();
-      loadMessages();
-    }
+        }
 
-    // Notebook Functions
-    function loadPages() {
-      const pagesList = document.getElementById('pagesList');
-      const userPages = notebookPages[currentUser] || [];
-      
-      if (userPages.length === 0) {
-        pagesList.innerHTML = '<p class="text-white/40 text-sm">Henüz sayfa yok. Yeni sayfa ekleyin!</p>';
-        clearPageEditor();
-        return;
-      }
-      
-      pagesList.innerHTML = userPages.map((page, index) => `
-        <button onclick="selectPage(${index})" 
-          class="px-3 py-1 text-sm rounded-full ${currentPageId === index ? 'bg-pink-500/50' : 'bg-white/10'} hover:bg-pink-500/30 truncate max-w-32">
-          ${escapeHtml(page.title || `Sayfa ${index + 1}`)}
-        </button>
-      `).join('');
-      
-      if (currentPageId === null && userPages.length > 0) {
-        selectPage(0);
-      } else if (currentPageId !== null && userPages[currentPageId]) {
-        document.getElementById('pageTitle').value = userPages[currentPageId].title || '';
-        document.getElementById('pageContent').value = userPages[currentPageId].content || '';
-      }
-    }
-
-    function addNewPage() {
-      if (!notebookPages[currentUser]) {
-        notebookPages[currentUser] = [];
-      }
-      
-      const newPage = {
-        id: Date.now(),
-        title: '',
-        content: '',
-        createdAt: Date.now()
-      };
-      
-      notebookPages[currentUser].push(newPage);
-      currentPageId = notebookPages[currentUser].length - 1;
-      localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
-      loadPages();
-    }
-
-    function selectPage(index) {
-      currentPageId = index;
-      const page = notebookPages[currentUser][index];
-      document.getElementById('pageTitle').value = page.title || '';
-      document.getElementById('pageContent').value = page.content || '';
-      loadPages();
-    }
-
-    function savePage() {
-      if (currentPageId === null) {
-        addNewPage();
-        return;
-      }
-      
-      const title = document.getElementById('pageTitle').value;
-      const content = document.getElementById('pageContent').value;
-      
-      if (!notebookPages[currentUser][currentPageId]) {
-        notebookPages[currentUser][currentPageId] = {};
-      }
-      
-      notebookPages[currentUser][currentPageId] = {
-        ...notebookPages[currentUser][currentPageId],
-        title,
-        content,
-        updatedAt: Date.now()
-      };
-      
-      localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
-      loadPages();
-    }
-
-    function deletePage() {
-      if (currentPageId === null) return;
-      
-      notebookPages[currentUser].splice(currentPageId, 1);
-      localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
-      saveAllToFirebase();
-      currentPageId = notebookPages[currentUser].length > 0 ? 0 : null;
-      loadPages();
-      
-      if (currentPageId === null) {
-        clearPageEditor();
-      }
-    }
-
-    function sharePage() {
-      if (currentPageId === null) return;
-      
-      const page = notebookPages[currentUser][currentPageId];
-      const partner = users[currentUser].partner;
-      
-      if (!sharedPages[partner]) {
-        sharedPages[partner] = [];
-      }
-      
-      sharedPages[partner].push({
-        from: currentUser,
-        title: page.title,
-        content: page.content,
-        sharedAt: Date.now()
-      });
-      
-      localStorage.setItem('sharedPages', JSON.stringify(sharedPages));
-      saveAllToFirebase();
-      alert('Sayfa ' + partner + ' ile paylaşıldı! ✨');
-    }
-
-    function checkSharedPages() {
-      const shared = sharedPages[currentUser];
-      if (shared && shared.length > 0) {
-        const latest = shared[shared.length - 1];
-        document.getElementById('sharedNotificationText').textContent = 
-          `${latest.from} seninle "${latest.title || 'Bir sayfa'}" paylaştı!`;
-        document.getElementById('sharedNotification').classList.remove('hidden');
-      }
-    }
-
-    function viewSharedPage() {
-      const shared = sharedPages[currentUser];
-      if (!shared || shared.length === 0) return;
-      
-      const latest = shared.pop();
-      localStorage.setItem('sharedPages', JSON.stringify(sharedPages));
-      saveAllToFirebase();
-      
-      if (!notebookPages[currentUser]) {
-        notebookPages[currentUser] = [];
-      }
-      
-      notebookPages[currentUser].push({
-        id: Date.now(),
-        title: `${latest.from}'dan: ${latest.title}`,
-        content: latest.content,
-        createdAt: Date.now()
-      });
-      
-      localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
-      saveAllToFirebase();
-      currentPageId = notebookPages[currentUser].length - 1;
-      loadPages();
-      dismissSharedNotification();
-    }
-
-    function dismissSharedNotification() {
-      document.getElementById('sharedNotification').classList.add('hidden');
-    }
-
-    function clearPageEditor() {
-      document.getElementById('pageTitle').value = '';
-      document.getElementById('pageContent').value = '';
-    }
-
-    // Utility Functions
-    function formatTime(timestamp) {
-      const date = new Date(timestamp);
-      return date.toLocaleString('tr-TR', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    // Initialize
-    createFloatingHearts();
-    
-    // Enter key for system password
-    document.getElementById('systemPassword').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') checkSystemPassword();
-    });
-    
-    // Enter key for user login (Google button handles clicks, no password field)
-    // document.getElementById('userPassword') not present any more
-  </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dac7bdaf27b561e',t:'MTc3MzI1MjI5MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
 </html>
