@@ -217,24 +217,58 @@
     firebase.analytics();
     const db = firebase.firestore();
     const storage = firebase.storage(); // for file attachments
-    const messagesCol = () => db.collection('coupleData').doc(channelKey).collection('messages');
+    const messagesCol = () => {
+      if (!db) {
+        throw new Error('Firestore has not been initialized');
+      }
+      if (!channelKey) {
+        throw new Error('channelKey is missing');
+      }
+      return db.collection('coupleData').doc(channelKey).collection('messages');
+    };
 
     let unsubscribeListener = null;
     function startRealtimeListener() {
-      if (unsubscribeListener) return;
-      unsubscribeListener = messagesCol()
-        .orderBy('timestamp')
-        .onSnapshot(snapshot => {
-          const newMsgs = [];
-          snapshot.forEach(doc => newMsgs.push({ id: doc.id, ...doc.data() }));
-          messages = newMsgs;
-          localStorage.setItem('coupleMessages', JSON.stringify(messages));
-          if (document.getElementById('chatSection').classList.contains('hidden') === false) {
-            loadMessages();
-          }
-        }, err => {
-          console.error('Realtime listener hata', err);
-        });
+      if (unsubscribeListener) return; // already listening
+      try {
+        unsubscribeListener = messagesCol()
+          .orderBy('timestamp')
+          .onSnapshot(snapshot => {
+            if (!snapshot) {
+              console.warn('Realtime listener received empty snapshot');
+              return;
+            }
+            // helpful debug output, inspect changes to figure out duplicates or missing docs
+            console.log('Realtime snapshot received', snapshot);
+            try {
+              console.log('snapshot.docChanges()', snapshot.docChanges());
+            } catch (e) {
+              console.warn('could not read docChanges()', e);
+            }
+
+            const newMsgs = [];
+            snapshot.forEach(doc => {
+              const data = doc.data() || {};
+              newMsgs.push({ id: doc.id, ...data });
+            });
+            messages = newMsgs;
+            localStorage.setItem('coupleMessages', JSON.stringify(messages));
+            if (document.getElementById('chatSection').classList.contains('hidden') === false) {
+              loadMessages();
+            }
+          }, err => {
+            console.error('Realtime listener hata', err.code, err.message, err);
+            // common troubleshooting hints
+            if (err.code === 'permission-denied') {
+              alert('Okuma/yazma izni reddedildi. Firestore güvenlik kurallarını kontrol edin.');
+            }
+            if (err.code === 'unimplemented') {
+              alert('Realtime özelliği bu platformda desteklenmiyor olabilir.');
+            }
+          });
+      } catch (e) {
+        console.error('startRealtimeListener threw exception', e);
+      }
     }
 
     // Bulut kaydetme / yükleme helper'ları
@@ -433,10 +467,23 @@
       // placeholder; not called
     }
 
+    // stop realtime listener helper
+    function stopRealtimeListener() {
+      if (unsubscribeListener) {
+        try {
+          unsubscribeListener();
+        } catch (e) {
+          console.warn('error while unsubscribing', e);
+        }
+        unsubscribeListener = null;
+      }
+    }
+
     // Logout
     function logout() {
       currentUser = null;
       googleLoggedIn = false;
+      stopRealtimeListener();
       document.getElementById('mainApp').classList.add('hidden');
       document.getElementById('userLoginScreen').classList.remove('hidden');
       firebase.auth().signOut();
