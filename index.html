@@ -244,6 +244,13 @@
     // Firebase Auth (Google) helpers
     function signInWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
+      // optional: specify web client id if needed
+      provider.addScope('profile');
+      provider.addScope('email');
+      provider.setCustomParameters({
+        // this is the OAuth client ID you provided
+        client_id: '786626604758-96r2m1776ar78sh07lbjoddhan89h7rv.apps.googleusercontent.com'
+      });
       firebase.auth().signInWithPopup(provider).catch(err => {
         console.error('Google sign-in error', err);
       });
