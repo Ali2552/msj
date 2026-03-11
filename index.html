@@ -146,10 +146,12 @@
          <p class="text-xs text-green-400">Çevrimiçi</p>
         </div>
        </div>
-       <div class="flex gap-2">
-        <button onclick="refreshMessages()" class="p-2 rounded-full hover:bg-white/10" title="Mesajları yenile">
+       <div class="flex gap-2 items-center">
+        <button onclick="refreshMessages()" id="refreshBtn" class="p-2 rounded-full hover:bg-white/10" title="Mesajları yenile">
          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-         </svg></button> <button onclick="toggleDeleteMode()" id="deleteToggleBtn" class="p-2 rounded-full hover:bg-white/10">
+         </svg></button>
+         <span id="refreshStatus" class="text-green-400 text-xs ml-2 hidden">Mesaj Başarı İle Yüklendi ✓</span>
+         <button onclick="toggleDeleteMode()" id="deleteToggleBtn" class="p-2 rounded-full hover:bg-white/10">
          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
          </svg></button>
        </div>
@@ -615,7 +617,26 @@
         messages = arr;
         localStorage.setItem('coupleMessages', JSON.stringify(messages));
         loadMessages();
+        showRefreshSuccess(snap.size);
+      }).catch(err => {
+        console.error('refreshMessages error', err);
       });
+    }
+
+    function showRefreshSuccess(count) {
+      const status = document.getElementById('refreshStatus');
+      if (!status) return;
+      status.textContent = `Mesaj Başarı İle Yüklendi ${count || ''}`.trim() + ' ✓';
+      status.classList.remove('hidden');
+      // temporarily highlight refresh button
+      const btn = document.getElementById('refreshBtn');
+      if (btn) {
+        btn.classList.add('bg-green-500/20');
+        setTimeout(() => btn.classList.remove('bg-green-500/20'), 2000);
+      }
+      setTimeout(() => {
+        status.classList.add('hidden');
+      }, 3000);
     }
 
     async function sendMessage() {
