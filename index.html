@@ -59,6 +59,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
  </head>
  <body class="h-full heart-bg text-white overflow-auto">
   <div id="app" class="min-h-full relative"><!-- Floating Hearts Background -->
@@ -78,8 +79,9 @@
      <div class="text-5xl mb-4">
       👫
      </div>
-     <h2 class="text-xl font-bold mb-6">Hoş Geldin Sevgilim</h2><input type="text" id="username" placeholder="Kullanıcı Adı" class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-pink-400 mb-3"> <input type="password" id="userPassword" placeholder="Şifre" class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-pink-400 mb-4"> <button onclick="userLogin()" class="w-full py-3 rounded-xl bg-gradient-to-r from-pink-500 to-red-500 font-semibold hover:opacity-90 transition"> Giriş 💕 </button>
-     <p id="userError" class="text-red-400 mt-3 text-sm hidden">Kullanıcı adı veya şifre hatalı!</p>
+     <h2 class="text-xl font-bold mb-6">Google ile Giriş Yap</h2>
+     <button onclick="signInWithGoogle()" class="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 font-semibold hover:opacity-90 transition mb-4">Google ile Giriş</button>
+     <p class="text-white/60 text-sm">Her iki kullanıcı farklı Google hesapları kullanmalı.</p>
     </div>
    </div><!-- Main App -->
    <div id="mainApp" class="min-h-full hidden"><!-- Header -->
@@ -238,6 +240,70 @@
       }).catch(console.error);
     }
 
+    // Firebase Auth (Google) helpers
+    function signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithPopup(provider).catch(err => {
+        console.error('Google sign-in error', err);
+      });
+    }
+
+    function handleGoogleUser(user) {
+      if (!user) return;
+      // her Google kullanıcı için bir persona seçme: UID ile eşleştir
+      let personaMap = JSON.parse(localStorage.getItem('personaByUid') || '{}');
+      let persona = personaMap[user.uid];
+      if (!persona) {
+        // kullanıcıya hangi isimle devam edeceğini sor
+        persona = prompt('Hangi kullanıcı olarak devam etmek istiyorsun? (Alişş / Betüşşş)');
+        if (!persona) {
+          alert('Geçersiz seçim.');
+          firebase.auth().signOut();
+          return;
+        }
+        persona = persona.trim();
+        // büyük/küçük harf duyarsız eşleşme
+        const match = Object.keys(users).find(k => k.toLowerCase() === persona.toLowerCase());
+        if (!match) {
+          alert('Geçersiz seçim.');
+          firebase.auth().signOut();
+          return;
+        }
+        persona = match;
+        personaMap[user.uid] = persona;
+        localStorage.setItem('personaByUid', JSON.stringify(personaMap));
+      }
+      currentUser = persona;
+      const u = users[currentUser];
+      document.getElementById('userLoginScreen').classList.add('hidden');
+      document.getElementById('mainApp').classList.remove('hidden');
+      document.getElementById('welcomeUser').textContent = `Hoş Geldin ${currentUser} 💕`;
+      document.getElementById('chatPartnerName').textContent = u.partner;
+      document.getElementById('chatPartnerAvatar').textContent = users[u.partner].avatar;
+      document.getElementById('partnerStatus').textContent = `${u.partner} çevrimiçi 💚`;
+
+      if (!notebookPages[currentUser]) {
+        notebookPages[currentUser] = [];
+      }
+      loadAllFromFirebase(() => {
+        calculateTime();
+        loadMessages();
+        loadPages();
+        checkSharedPages();
+        startRealtimeListener();
+      });
+    }
+
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) {
+        handleGoogleUser(user);
+      } else {
+        // show login screen if not already visible
+        document.getElementById('mainApp').classList.add('hidden');
+        document.getElementById('userLoginScreen').classList.remove('hidden');
+      }
+    });
+
     function loadAllFromFirebase(callback) {
       db.collection('coupleData').doc(channelKey).get().then(doc => {
         if (doc.exists) {
@@ -271,10 +337,10 @@
     let recordingInterval = null;
     let audioChunks = [];
 
-    // Users Data
+    // Users Data (alias-based, firebasede gmail farkı olmadan seçilecek)
     const users = {
-      'Alişş': { password: 'Sevda', partner: 'Betüşşş', avatar: '💙' },
-      'Betüşşş': { password: 'Sevda', partner: 'Alişş', avatar: '💗' }
+      'Alişş': { partner: 'Betüşşş', avatar: '💙' },
+      'Betüşşş': { partner: 'Alişş', avatar: '💗' }
     };
 
     // Start Date
@@ -350,37 +416,9 @@
     }
 
     // User Login
+    // eski kullanıcı girişi artık kullanılmıyor, Google Auth üzerinden ilerleniyor
     function userLogin() {
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('userPassword').value;
-      
-      if (users[username] && users[username].password === password) {
-        currentUser = username;
-        document.getElementById('userLoginScreen').classList.add('hidden');
-        document.getElementById('mainApp').classList.remove('hidden');
-        document.getElementById('welcomeUser').textContent = `Hoş Geldin ${username} 💕`;
-        document.getElementById('chatPartnerName').textContent = users[username].partner;
-        document.getElementById('chatPartnerAvatar').textContent = users[users[username].partner].avatar;
-        document.getElementById('partnerStatus').textContent = `${users[username].partner} çevrimiçi 💚`;
-        document.getElementById('userError').classList.add('hidden');
-        
-        // Initialize user's notebook if not exists
-        if (!notebookPages[currentUser]) {
-          notebookPages[currentUser] = [];
-        }
-
-        // Firebase'ten son durumu al
-        loadAllFromFirebase(() => {
-          calculateTime();
-          loadMessages();
-          loadPages();
-          checkSharedPages();
-          // gerçek zamanlı dinleyiciyi başlat
-          startRealtimeListener();
-        });
-      } else {
-        document.getElementById('userError').classList.remove('hidden');
-      }
+      // placeholder; not called
     }
 
     // Logout
@@ -388,8 +426,7 @@
       currentUser = null;
       document.getElementById('mainApp').classList.add('hidden');
       document.getElementById('userLoginScreen').classList.remove('hidden');
-      document.getElementById('username').value = '';
-      document.getElementById('userPassword').value = '';
+      firebase.auth().signOut();
     }
 
     // Calculate Time Together
@@ -849,10 +886,8 @@
       if (e.key === 'Enter') checkSystemPassword();
     });
     
-    // Enter key for user login
-    document.getElementById('userPassword').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') userLogin();
-    });
+    // Enter key for user login (Google button handles clicks, no password field)
+    // document.getElementById('userPassword') not present any more
   </script>
  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9dac7bdaf27b561e',t:'MTc3MzI1MjI5MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
