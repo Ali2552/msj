@@ -55,6 +55,10 @@
   </style>
   <style>body { box-sizing: border-box; }</style>
   <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
  </head>
  <body class="h-full heart-bg text-white overflow-auto">
   <div id="app" class="min-h-full relative"><!-- Floating Hearts Background -->
@@ -186,6 +190,48 @@
    </div>
   </div>
   <script>
+    // Firebase configuration and helpers
+    const firebaseConfig = {
+      apiKey: "AIzaSyAHacKAKo6QEeMVGXTAT0IyuVuYuxUsHxs",
+      authDomain: "msju-7b8fa.firebaseapp.com",
+      projectId: "msju-7b8fa",
+      storageBucket: "msju-7b8fa.firebasestorage.app",
+      messagingSenderId: "786626604758",
+      appId: "1:786626604758:web:7bc166fe96c4321e87a377",
+      measurementId: "G-D4JV5RQP4R"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    firebase.analytics();
+    const db = firebase.firestore();
+
+    function saveAllToFirebase() {
+      // store messages, notebook pages and shared pages under single couple document
+      db.collection('coupleData').doc('state').set({
+        messages,
+        notebookPages,
+        sharedPages
+      }).catch(console.error);
+    }
+
+    function loadAllFromFirebase(callback) {
+      db.collection('coupleData').doc('state').get().then(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          messages = data.messages || [];
+          notebookPages = data.notebookPages || {};
+          sharedPages = data.sharedPages || {};
+          localStorage.setItem('coupleMessages', JSON.stringify(messages));
+          localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
+          localStorage.setItem('sharedPages', JSON.stringify(sharedPages));
+        }
+        if (callback) callback();
+      }).catch(err => {
+        console.error('Firebase load error', err);
+        if (callback) callback();
+      });
+    }
+
     // App State
     let currentUser = null;
     let messages = JSON.parse(localStorage.getItem('coupleMessages') || '[]');
@@ -298,11 +344,14 @@
         if (!notebookPages[currentUser]) {
           notebookPages[currentUser] = [];
         }
-        
-        calculateTime();
-        loadMessages();
-        loadPages();
-        checkSharedPages();
+
+        // fetch latest data from Firebase before rendering
+        loadAllFromFirebase(() => {
+          calculateTime();
+          loadMessages();
+          loadPages();
+          checkSharedPages();
+        });
       } else {
         document.getElementById('userError').classList.remove('hidden');
       }
@@ -360,10 +409,13 @@
       document.getElementById(`${section}Section`).classList.remove('hidden');
       
       if (section === 'chat') {
-        loadMessages();
+        refreshMessages();
       } else if (section === 'notebook') {
-        loadPages();
-        checkSharedPages();
+        // get fresh notebook data as well
+        loadAllFromFirebase(() => {
+          loadPages();
+          checkSharedPages();
+        });
       }
     }
 
@@ -420,7 +472,8 @@
     }
 
     function refreshMessages() {
-      loadMessages();
+      // pull latest from Firebase and then render
+      loadAllFromFirebase(loadMessages);
     }
 
     function sendMessage() {
@@ -446,6 +499,7 @@
         
         messages.push(message);
         localStorage.setItem('coupleMessages', JSON.stringify(messages));
+        saveAllToFirebase();
         
         input.value = '';
         loadMessages();
@@ -583,6 +637,7 @@
       }
       
       localStorage.setItem('coupleMessages', JSON.stringify(messages));
+      saveAllToFirebase();
       selectedMessages.clear();
       toggleDeleteMode();
       loadMessages();
@@ -629,6 +684,7 @@
       notebookPages[currentUser].push(newPage);
       currentPageId = notebookPages[currentUser].length - 1;
       localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
+      saveAllToFirebase();
       loadPages();
     }
 
@@ -661,6 +717,7 @@
       };
       
       localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
+      saveAllToFirebase();
       loadPages();
     }
 
@@ -669,6 +726,7 @@
       
       notebookPages[currentUser].splice(currentPageId, 1);
       localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
+      saveAllToFirebase();
       currentPageId = notebookPages[currentUser].length > 0 ? 0 : null;
       loadPages();
       
@@ -695,6 +753,7 @@
       });
       
       localStorage.setItem('sharedPages', JSON.stringify(sharedPages));
+      saveAllToFirebase();
       alert('Sayfa ' + partner + ' ile paylaşıldı! ✨');
     }
 
@@ -714,6 +773,7 @@
       
       const latest = shared.pop();
       localStorage.setItem('sharedPages', JSON.stringify(sharedPages));
+      saveAllToFirebase();
       
       if (!notebookPages[currentUser]) {
         notebookPages[currentUser] = [];
@@ -727,6 +787,7 @@
       });
       
       localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
+      saveAllToFirebase();
       currentPageId = notebookPages[currentUser].length - 1;
       loadPages();
       dismissSharedNotification();
