@@ -60,6 +60,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
  </head>
  <body class="h-full heart-bg text-white overflow-auto">
   <div id="app" class="min-h-full relative"><!-- Floating Hearts Background -->
@@ -164,7 +165,14 @@
        </div>
       </div><!-- Message Input -->
       <div class="bg-white/5 px-4 py-3">
-       <div class="flex gap-2"><input type="text" id="messageInput" placeholder="Mesajınızı yazın..." class="flex-1 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-pink-400" onkeypress="if(event.key==='Enter')sendMessage()"> <button onclick="startRecording()" id="recordBtn" class="px-4 py-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 font-semibold hover:opacity-90 transition" title="Sesli mesaj kaydet">🎤</button> <button onclick="sendMessage()" id="sendBtn" class="px-6 py-2 rounded-full bg-gradient-to-r from-pink-500 to-red-500 font-semibold hover:opacity-90 transition"> Gönder </button>
+       <div class="flex gap-2">
+          <input type="file" id="fileInput" class="hidden" onchange="handleFileSelected(event)">
+          <button onclick="document.getElementById('fileInput').click()" title="Dosya gönder" class="px-3 py-2 rounded-full bg-white/20 hover:bg-white/30">
+            📎
+          </button>
+          <input type="text" id="messageInput" placeholder="Mesajınızı yazın..." class="flex-1 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-pink-400" onkeypress="if(event.key==='Enter')sendMessage()">
+          <button onclick="startRecording()" id="recordBtn" class="px-4 py-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 font-semibold hover:opacity-90 transition" title="Sesli mesaj kaydet">🎤</button>
+          <button onclick="sendMessage()" id="sendBtn" class="px-6 py-2 rounded-full bg-gradient-to-r from-pink-500 to-red-500 font-semibold hover:opacity-90 transition"> Gönder </button>
        </div>
        <div id="recordingStatus" class="text-xs text-blue-400 mt-2 hidden">
         🔴 Kayıt yapılıyor... <span id="recordingTime">00:00</span>
@@ -208,24 +216,21 @@
     firebase.initializeApp(firebaseConfig);
     firebase.analytics();
     const db = firebase.firestore();
+    const storage = firebase.storage(); // for file attachments
+    const messagesCol = () => db.collection('coupleData').doc(channelKey).collection('messages');
 
     let unsubscribeListener = null;
     function startRealtimeListener() {
       if (unsubscribeListener) return;
-      unsubscribeListener = db.collection('coupleData').doc(channelKey)
-        .onSnapshot(doc => {
-          if (doc.exists) {
-            const data = doc.data();
-            messages = data.messages || [];
-            notebookPages = data.notebookPages || {};
-            sharedPages = data.sharedPages || {};
-            localStorage.setItem('coupleMessages', JSON.stringify(messages));
-            localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
-            localStorage.setItem('sharedPages', JSON.stringify(sharedPages));
-            // update UI if chat open
-            if (document.getElementById('chatSection').classList.contains('hidden') === false) {
-              loadMessages();
-            }
+      unsubscribeListener = messagesCol()
+        .orderBy('timestamp')
+        .onSnapshot(snapshot => {
+          const newMsgs = [];
+          snapshot.forEach(doc => newMsgs.push({ id: doc.id, ...doc.data() }));
+          messages = newMsgs;
+          localStorage.setItem('coupleMessages', JSON.stringify(messages));
+          if (document.getElementById('chatSection').classList.contains('hidden') === false) {
+            loadMessages();
           }
         }, err => {
           console.error('Realtime listener hata', err);
@@ -494,6 +499,9 @@
       const container = document.getElementById('messagesContainer');
       messages = JSON.parse(localStorage.getItem('coupleMessages') || '[]');
       
+      // sort by timestamp in case
+      messages.sort((a,b)=>a.timestamp-b.timestamp);
+      
       // Gelen mesajları görüldü olarak işaretle
       messages.forEach(msg => {
         if (msg.sender !== currentUser && !msg.seen) {
@@ -513,6 +521,17 @@
           content = `<p class="text-sm">${escapeHtml(msg.text)}</p>`;
         } else if (msg.type === 'audio') {
           content = `<div class="flex items-center gap-2"><button onclick="playAudio('${index}')" class="px-2 py-1 bg-white/20 rounded hover:bg-white/30">▶️ Oynat</button><span class="text-xs text-white/60">${msg.duration || 'Sesli mesaj'}</span></div>`;
+        } else if (msg.type === 'file') {
+          // display based on extension
+          const url = msg.url || '';
+          const name = escapeHtml(msg.fileName || 'dosya');
+          if (msg.fileType && msg.fileType.startsWith('image/')) {
+            content = `<img src="${url}" class="max-w-xs rounded" /> <div><a href="${url}" download="${name}" class="text-xs text-blue-300">${name} indir</a></div>`;
+          } else if (msg.fileType && msg.fileType.startsWith('video/')) {
+            content = `<video src="${url}" controls class="max-w-xs rounded"></video> <div><a href="${url}" download="${name}" class="text-xs text-blue-300">${name} indir</a></div>`;
+          } else {
+            content = `<a href="${url}" download="${name}" class="text-xs text-blue-300">📎 ${name}</a>`;
+          }
         }
         
         let statusIcon = '';
@@ -525,8 +544,8 @@
         }
         
         return `
-          <div class="message-item flex ${msg.sender === currentUser ? 'justify-end' : 'justify-start'} ${selectedMessages.has(index) ? 'selected' : ''}" 
-               data-index="${index}" ${deleteMode ? `onclick="toggleSelectMessage(${index})"` : ''}>
+          <div class="message-item flex ${msg.sender === currentUser ? 'justify-end' : 'justify-start'} ${selectedMessages.has(msg.id) ? 'selected' : ''}" 
+               data-id="${msg.id}" ${deleteMode ? `onclick="toggleSelectMessage('${msg.id}')"` : ''}>
             <div class="${msg.sender === currentUser ? 'chat-bubble-sent' : 'chat-bubble-received'} px-4 py-2 max-w-xs">
               ${content}
               <div class="flex items-center justify-between mt-1">
@@ -542,10 +561,17 @@
     }
 
     function refreshMessages() {
-      loadAllFromFirebase(loadMessages);
+      // force reload from firestore
+      messagesCol().orderBy('timestamp').get().then(snap => {
+        const arr = [];
+        snap.forEach(d=>arr.push(d.data()));
+        messages = arr;
+        localStorage.setItem('coupleMessages', JSON.stringify(messages));
+        loadMessages();
+      });
     }
 
-    function sendMessage() {
+    async function sendMessage() {
       if (isSending) return;
       
       const input = document.getElementById('messageInput');
@@ -558,25 +584,24 @@
       sendBtn.textContent = '...';
       sendBtn.disabled = true;
       
-      setTimeout(() => {
-        const message = {
-          sender: currentUser,
-          text: text,
-          type: 'text',
-          timestamp: Date.now()
-        };
-        
-        messages.push(message);
-        localStorage.setItem('coupleMessages', JSON.stringify(messages));
-        saveAllToFirebase();
-        
-        input.value = '';
-        loadMessages();
-        
-        isSending = false;
-        sendBtn.textContent = 'Gönder';
-        sendBtn.disabled = false;
-      }, 100);
+      const message = {
+        sender: currentUser,
+        text: text,
+        type: 'text',
+        timestamp: Date.now()
+      };
+      try {
+        await messagesCol().add(message);
+      } catch(err){console.error(err);}      
+      // optimistic update
+      messages.push(message);
+      localStorage.setItem('coupleMessages', JSON.stringify(messages));
+      input.value = '';
+      loadMessages();
+      
+      isSending = false;
+      sendBtn.textContent = 'Gönder';
+      sendBtn.disabled = false;
     }
 
     async function startRecording() {
@@ -654,6 +679,27 @@
       }
     }
 
+    async function handleFileSelected(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const path = `${channelKey}/attachments/${Date.now()}_${file.name}`;
+      const ref = storage.ref(path);
+      try {
+        const snap = await ref.put(file);
+        const url = await snap.ref.getDownloadURL();
+        const message = {
+          sender: currentUser,
+          type: 'file',
+          url,
+          fileName: file.name,
+          fileType: file.type,
+          timestamp: Date.now()
+        };
+        await messagesCol().add(message);
+      } catch(err){
+        console.error('upload error', err);
+      }
+    }
     function toggleDeleteMode() {
       deleteMode = !deleteMode;
       selectedMessages.clear();
@@ -674,13 +720,13 @@
       }
     }
 
-    function toggleSelectMessage(index) {
+    function toggleSelectMessage(id) {
       if (!deleteMode) return;
       
-      if (selectedMessages.has(index)) {
-        selectedMessages.delete(index);
+      if (selectedMessages.has(id)) {
+        selectedMessages.delete(id);
       } else {
-        selectedMessages.add(index);
+        selectedMessages.add(id);
       }
       loadMessages();
     }
@@ -692,21 +738,38 @@
       
       switch(type) {
         case '24h':
+          // delete docs older than 24h
+          messages.forEach(msg => {
+            if (now - msg.timestamp > oneDay && msg.id) {
+              messagesCol().doc(msg.id).delete().catch(console.error);
+            }
+          });
           messages = messages.filter(m => now - m.timestamp > oneDay);
           break;
         case 'selected':
-          messages = messages.filter((_, index) => !selectedMessages.has(index));
+          selectedMessages.forEach(id => {
+            messagesCol().doc(id).delete().catch(console.error);
+          });
+          messages = messages.filter(m => !selectedMessages.has(m.id));
           break;
         case 'before1month':
+          messages.forEach(msg => {
+            if (now - msg.timestamp > oneMonth && msg.id) {
+              messagesCol().doc(msg.id).delete().catch(console.error);
+            }
+          });
           messages = messages.filter(m => now - m.timestamp < oneMonth);
           break;
         case 'all':
+          // delete all docs
+          messages.forEach(msg => {
+            if (msg.id) messagesCol().doc(msg.id).delete().catch(console.error);
+          });
           messages = [];
           break;
       }
       
       localStorage.setItem('coupleMessages', JSON.stringify(messages));
-      saveAllToFirebase();
       selectedMessages.clear();
       toggleDeleteMode();
       loadMessages();
