@@ -55,7 +55,7 @@
   </style>
   <style>body { box-sizing: border-box; }</style>
   <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
-  <!-- Firebase SDKs -->
+  <!-- Firebase SDKs for cloud messaging backup -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
@@ -190,7 +190,8 @@
    </div>
   </div>
   <script>
-    // Firebase configuration and helpers
+    // Firebase yapılandırması ve kanal anahtarı (sizin verdiğiniz POHGO_...)
+    const channelKey = 'POHGO_hrTxRY6yzIIoahZL8-nMpGosShQHPH2Oavisg';
     const firebaseConfig = {
       apiKey: "AIzaSyAHacKAKo6QEeMVGXTAT0IyuVuYuxUsHxs",
       authDomain: "msju-7b8fa.firebaseapp.com",
@@ -205,9 +206,9 @@
     firebase.analytics();
     const db = firebase.firestore();
 
+    // Bulut kaydetme / yükleme helper'ları
     function saveAllToFirebase() {
-      // store messages, notebook pages and shared pages under single couple document
-      db.collection('coupleData').doc('state').set({
+      db.collection('coupleData').doc(channelKey).set({
         messages,
         notebookPages,
         sharedPages
@@ -215,7 +216,7 @@
     }
 
     function loadAllFromFirebase(callback) {
-      db.collection('coupleData').doc('state').get().then(doc => {
+      db.collection('coupleData').doc(channelKey).get().then(doc => {
         if (doc.exists) {
           const data = doc.data();
           messages = data.messages || [];
@@ -227,7 +228,7 @@
         }
         if (callback) callback();
       }).catch(err => {
-        console.error('Firebase load error', err);
+        console.error('Firebase yükleme hatası', err);
         if (callback) callback();
       });
     }
@@ -345,7 +346,7 @@
           notebookPages[currentUser] = [];
         }
 
-        // fetch latest data from Firebase before rendering
+        // Firebase'ten son durumu al
         loadAllFromFirebase(() => {
           calculateTime();
           loadMessages();
@@ -411,7 +412,6 @@
       if (section === 'chat') {
         refreshMessages();
       } else if (section === 'notebook') {
-        // get fresh notebook data as well
         loadAllFromFirebase(() => {
           loadPages();
           checkSharedPages();
@@ -472,7 +472,6 @@
     }
 
     function refreshMessages() {
-      // pull latest from Firebase and then render
       loadAllFromFirebase(loadMessages);
     }
 
@@ -684,7 +683,6 @@
       notebookPages[currentUser].push(newPage);
       currentPageId = notebookPages[currentUser].length - 1;
       localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
-      saveAllToFirebase();
       loadPages();
     }
 
@@ -717,7 +715,6 @@
       };
       
       localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
-      saveAllToFirebase();
       loadPages();
     }
 
