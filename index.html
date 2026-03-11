@@ -206,6 +206,29 @@
     firebase.analytics();
     const db = firebase.firestore();
 
+    let unsubscribeListener = null;
+    function startRealtimeListener() {
+      if (unsubscribeListener) return;
+      unsubscribeListener = db.collection('coupleData').doc(channelKey)
+        .onSnapshot(doc => {
+          if (doc.exists) {
+            const data = doc.data();
+            messages = data.messages || [];
+            notebookPages = data.notebookPages || {};
+            sharedPages = data.sharedPages || {};
+            localStorage.setItem('coupleMessages', JSON.stringify(messages));
+            localStorage.setItem('notebookPages', JSON.stringify(notebookPages));
+            localStorage.setItem('sharedPages', JSON.stringify(sharedPages));
+            // update UI if chat open
+            if (document.getElementById('chatSection').classList.contains('hidden') === false) {
+              loadMessages();
+            }
+          }
+        }, err => {
+          console.error('Realtime listener hata', err);
+        });
+    }
+
     // Bulut kaydetme / yükleme helper'ları
     function saveAllToFirebase() {
       db.collection('coupleData').doc(channelKey).set({
@@ -352,6 +375,8 @@
           loadMessages();
           loadPages();
           checkSharedPages();
+          // gerçek zamanlı dinleyiciyi başlat
+          startRealtimeListener();
         });
       } else {
         document.getElementById('userError').classList.remove('hidden');
